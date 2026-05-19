@@ -1,0 +1,163 @@
+{% extends "base.html" %}
+{% block title %}{{ session.sprint_name }} — RetroLens{% endblock %}
+{% block content %}
+<div class="header">
+    <div>
+        <h1 class="page-title">{{ session.sprint_name }}</h1>
+        <p class="page-sub">{{ session.team.name if session.team else '' }} · {{ session.date.strftime('%b %d, %Y') if session.date else '' }}</p>
+    </div>
+    <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">← Back</a>
+</div>
+
+<!-- Summary Metrics -->
+<div class="metrics">
+    <div class="metric">
+        <div class="metric-label">Morale</div>
+        <div class="metric-val">{{ '⭐' * session.morale_score }}{{ '☆' * (5 - session.morale_score) }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Overall Sentiment</div>
+        <div class="metric-val" style="color: {{ session.overall_sentiment|sentiment_color }};">
+            {{ session.overall_sentiment|sentiment_label|title }}
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Feedback Items</div>
+        <div class="metric-val" style="color: var(--accent);">{{ items|length }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Action Items</div>
+        <div class="metric-val" style="color: var(--blue);">{{ actions|length }}</div>
+    </div>
+</div>
+
+<!-- AI Summary -->
+{% if analysis.get('summary') %}
+<div class="card mb-20" style="border-left: 3px solid var(--accent);">
+    <div class="card-title">AI Summary</div>
+    <p style="font-size: 14px; line-height: 1.7; color: var(--text2);">{{ analysis.summary }}</p>
+    {% if analysis.get('key_insights') %}
+    <div style="margin-top: 14px;">
+        <div style="font-size: 12px; color: var(--muted); margin-bottom: 8px;">KEY INSIGHTS</div>
+        {% for insight in analysis.key_insights %}
+        <div style="padding: 6px 0; font-size: 13px; color: var(--text); border-bottom: 1px solid var(--border);">
+            💡 {{ insight }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    {% if analysis.get('risk_flags') and analysis.risk_flags %}
+    <div style="margin-top: 14px;">
+        <div style="font-size: 12px; color: var(--red); margin-bottom: 8px;">⚠️ RISK FLAGS</div>
+        {% for risk in analysis.risk_flags %}
+        <div style="padding: 4px 0; font-size: 13px; color: var(--red);">{{ risk }}</div>
+        {% endfor %}
+    </div>
+    {% endif %}
+</div>
+{% endif %}
+
+<div class="grid-3 mb-20">
+    <!-- Sentiment Breakdown -->
+    <div class="card">
+        <div class="card-title">Sentiment Breakdown</div>
+        <div class="sentiment-bar" style="margin-bottom: 14px;">
+            {% set total = sentiments.positive + sentiments.neutral + sentiments.negative %}
+            {% if total > 0 %}
+            <div style="width: {{ sentiments.positive / total * 100 }}%; background: var(--green);"></div>
+            <div style="width: {{ sentiments.neutral / total * 100 }}%; background: var(--amber);"></div>
+            <div style="width: {{ sentiments.negative / total * 100 }}%; background: var(--red);"></div>
+            {% endif %}
+        </div>
+        <div style="display: flex; justify-content: space-between; font-size: 12px; color: var(--text2); margin-bottom: 20px;">
+            <span>😊 {{ sentiments.positive }} positive</span>
+            <span>😐 {{ sentiments.neutral }} neutral</span>
+            <span>😟 {{ sentiments.negative }} negative</span>
+        </div>
+        <div class="card-title">Theme Distribution</div>
+        <div class="chart-box" style="height: 200px;"><canvas id="themeChart"></canvas></div>
+    </div>
+
+    <!-- Themes List -->
+    <div class="card">
+        <div class="card-title">Themes</div>
+        {% for theme, count in themes|dictsort(by='value', reverse=true) %}
+        <div style="display: flex; align-items: center; gap: 10px; padding: 6px 0;">
+            <span style="font-size: 13px; flex: 1;">{{ theme }}</span>
+            <span style="font-size: 12px; font-family: var(--mono); color: var(--muted);">{{ count }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Categorized Feedback -->
+<div class="card mb-20">
+    <div class="card-title">Categorized Feedback</div>
+    {% for category, cat_items in categories.items() %}
+    <div style="margin-bottom: 20px;">
+        <div style="font-size: 13px; font-weight: 600; margin-bottom: 10px; display: flex; align-items: center; gap: 8px;">
+            <span class="cat-tag cat-{{ category }}">{{ category|replace('_', ' ') }}</span>
+            <span style="color: var(--muted); font-weight: 400;">{{ cat_items|length }} items</span>
+        </div>
+        {% for item in cat_items %}
+        <div style="display: flex; align-items: flex-start; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border);">
+            <div style="width: 8px; height: 8px; border-radius: 50%; margin-top: 6px; flex-shrink: 0;
+                background: {{ item.sentiment|sentiment_color }};"></div>
+            <div style="flex: 1;">
+                <div style="font-size: 13px;">{{ item.original_text }}</div>
+                <div style="font-size: 11px; color: var(--muted); margin-top: 4px;">
+                    Theme: {{ item.theme or 'general' }} · Sentiment: {{ "%.1f"|format(item.sentiment) }}
+                </div>
+            </div>
+            <span class="badge badge-{{ item.sentiment|sentiment_label }}" style="flex-shrink: 0;">{{ item.sentiment|sentiment_label }}</span>
+        </div>
+        {% endfor %}
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Action Items -->
+<div class="card">
+    <div class="card-title">Action Items</div>
+    <table>
+        <thead><tr><th>Action</th><th>Owner</th><th>Priority</th><th>Status</th></tr></thead>
+        <tbody>
+        {% for action in actions %}
+        <tr>
+            <td style="font-weight: 500;">{{ action.text }}</td>
+            <td style="color: var(--text2);">{{ action.owner or '—' }}</td>
+            <td>
+                <span class="badge" style="background: {{ {'high': 'rgba(248,113,113,0.15)', 'medium': 'rgba(251,191,36,0.15)', 'low': 'rgba(136,136,168,0.15)'}[action.priority] }};
+                    color: {{ {'high': 'var(--red)', 'medium': 'var(--amber)', 'low': 'var(--muted)'}[action.priority] }};">{{ action.priority }}</span>
+            </td>
+            <td>
+                <form method="POST" action="{{ url_for('update_action', action_id=action.id) }}" style="display: inline;">
+                    <select name="status" onchange="this.form.submit()" class="form-select" style="width: auto; padding: 3px 8px; font-size: 11px;">
+                        {% for s in ['open', 'in_progress', 'done'] %}
+                        <option value="{{ s }}" {% if action.status == s %}selected{% endif %}>{{ s|replace('_', ' ') }}</option>
+                        {% endfor %}
+                    </select>
+                </form>
+            </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const themes = {{ themes|tojson }};
+const labels = Object.keys(themes);
+const themeColors = ['#a78bfa', '#34d399', '#f87171', '#fbbf24', '#60a5fa', '#f472b6', '#818cf8'];
+new Chart(document.getElementById('themeChart'), {
+    type: 'doughnut',
+    data: {
+        labels: labels,
+        datasets: [{ data: labels.map(l => themes[l]), backgroundColor: labels.map((_, i) => themeColors[i % themeColors.length]), borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '55%', plugins: { legend: { position: 'bottom', labels: { color: '#8888a8', padding: 10, usePointStyle: true, font: { size: 11 } } } } }
+});
+</script>
+{% endblock %}

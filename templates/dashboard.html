@@ -1,0 +1,124 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — RetroLens{% endblock %}
+{% block content %}
+<div class="header">
+    <div>
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-sub">Team health insights across retrospectives</p>
+    </div>
+    <a href="{{ url_for('new_retro') }}" class="btn btn-primary">✨ New Analysis</a>
+</div>
+
+<div class="metrics">
+    <div class="metric">
+        <div class="metric-label">Retro Sessions</div>
+        <div class="metric-val" style="color: var(--accent);">{{ recent_sessions|length }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Open Actions</div>
+        <div class="metric-val" style="color: var(--amber);">{{ open_actions|length }}</div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Avg Morale</div>
+        <div class="metric-val" style="color: var(--green);">
+            {% if morale_data %}{{ (morale_data|map(attribute='morale')|sum / morale_data|length)|round(1) }}{% else %}—{% endif %}
+        </div>
+    </div>
+    <div class="metric">
+        <div class="metric-label">Themes Tracked</div>
+        <div class="metric-val">{{ theme_freq|length }}</div>
+    </div>
+</div>
+
+<div class="grid-3 mb-20">
+    <div class="card">
+        <div class="card-title">Morale & Sentiment Trend</div>
+        <div class="chart-box"><canvas id="moraleChart"></canvas></div>
+    </div>
+    <div class="card">
+        <div class="card-title">Category Distribution</div>
+        <div class="chart-box"><canvas id="catChart"></canvas></div>
+    </div>
+</div>
+
+<div class="grid-2 mb-20">
+    <div class="card">
+        <div class="card-title">Top Themes</div>
+        {% for theme, count in theme_freq|dictsort(by='value', reverse=true) %}
+        <div style="display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <span style="font-size: 13px; min-width: 120px;">{{ theme }}</span>
+            <div style="flex: 1; height: 6px; background: var(--bg3); border-radius: 3px; overflow: hidden;">
+                <div style="height: 100%; width: {{ (count / theme_freq.values()|max * 100)|round }}%; background: var(--accent); border-radius: 3px;"></div>
+            </div>
+            <span style="font-size: 12px; color: var(--muted); font-family: var(--mono);">{{ count }}</span>
+        </div>
+        {% endfor %}
+    </div>
+
+    <div class="card">
+        <div class="card-title">Open Action Items</div>
+        {% for action in open_actions[:8] %}
+        <div style="display: flex; justify-content: space-between; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border);">
+            <div>
+                <div style="font-size: 13px;">{{ action.text }}</div>
+                <div style="font-size: 11px; color: var(--muted);">{{ action.owner or 'Unassigned' }}</div>
+            </div>
+            <span class="badge badge-{{ action.status }}">{{ action.status }}</span>
+        </div>
+        {% else %}
+        <p style="color: var(--muted); text-align: center; padding: 20px;">All caught up! 🎉</p>
+        {% endfor %}
+    </div>
+</div>
+
+<!-- Recent Sessions -->
+<div class="card">
+    <div class="card-title">Recent Retro Sessions</div>
+    <table>
+        <thead><tr><th>Sprint</th><th>Team</th><th>Date</th><th>Morale</th><th>Sentiment</th><th></th></tr></thead>
+        <tbody>
+        {% for s in recent_sessions %}
+        <tr>
+            <td style="font-weight: 500;">{{ s.sprint_name }}</td>
+            <td style="color: var(--text2);">{{ s.team.name if s.team else '—' }}</td>
+            <td style="color: var(--muted);">{{ s.date.strftime('%b %d, %Y') if s.date else '—' }}</td>
+            <td>{{ '⭐' * s.morale_score }}{{ '☆' * (5 - s.morale_score) }}</td>
+            <td><span class="badge badge-{{ s.overall_sentiment|sentiment_label }}">{{ s.overall_sentiment|sentiment_label }}</span></td>
+            <td><a href="{{ url_for('retro_detail', session_id=s.id) }}" class="btn btn-secondary btn-sm">View</a></td>
+        </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const moraleData = {{ morale_data|tojson }};
+new Chart(document.getElementById('moraleChart'), {
+    type: 'line',
+    data: {
+        labels: moraleData.map(d => d.sprint),
+        datasets: [
+            { label: 'Morale', data: moraleData.map(d => d.morale), borderColor: '#a78bfa', backgroundColor: 'rgba(167,139,250,0.1)', fill: true, tension: 0.3, borderWidth: 2 },
+            { label: 'Sentiment', data: moraleData.map(d => (d.sentiment + 1) * 2.5), borderColor: '#34d399', borderDash: [5,3], tension: 0.3, borderWidth: 1.5, pointRadius: 3 }
+        ]
+    },
+    options: { responsive: true, maintainAspectRatio: false, scales: {
+        y: { min: 0, max: 5, grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: '#555570' } },
+        x: { grid: { display: false }, ticks: { color: '#555570', maxRotation: 45 } }
+    }, plugins: { legend: { labels: { color: '#8888a8' } } } }
+});
+
+const catData = {{ cat_dist|tojson }};
+const catColors = { went_well: '#34d399', to_improve: '#f87171', blocker: '#ef4444', kudos: '#f472b6', process: '#60a5fa', technical: '#a78bfa', communication: '#fbbf24' };
+new Chart(document.getElementById('catChart'), {
+    type: 'doughnut',
+    data: {
+        labels: Object.keys(catData).map(c => c.replace('_', ' ')),
+        datasets: [{ data: Object.values(catData), backgroundColor: Object.keys(catData).map(c => catColors[c] || '#555570'), borderWidth: 0 }]
+    },
+    options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'bottom', labels: { color: '#8888a8', padding: 12, usePointStyle: true } } } }
+});
+</script>
+{% endblock %}

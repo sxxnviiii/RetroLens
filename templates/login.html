@@ -1,0 +1,22 @@
+{% extends "base.html" %}
+{% block title %}Login — RetroLens{% endblock %}
+{% block content %}
+<div style="max-width: 380px; margin: 80px auto;">
+    <h1 class="page-title" style="text-align: center; margin-bottom: 8px;">RetroLens</h1>
+    <p class="page-sub" style="text-align: center; margin-bottom: 28px;">AI-powered retrospective analysis</p>
+    <form method="POST" class="card">
+        <div class="form-group">
+            <label class="form-label">Username</label>
+            <input type="text" name="username" class="form-input" required>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Password</label>
+            <input type="password" name="password" class="form-input" required>
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; justify-content: center;">Sign In</button>
+        <p style="text-align: center; margin-top: 14px; font-size: 13px; color: var(--muted);">
+            <a href="{{ url_for('register') }}" style="color: var(--accent);">Create account</a> · Demo: <code style="color: var(--accent);">saanvi / password123</code>
+        </p>
+    </form>
+</div>
+{% endblock %}

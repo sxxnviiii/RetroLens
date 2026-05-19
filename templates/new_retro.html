@@ -1,0 +1,53 @@
+{% extends "base.html" %}
+{% block title %}New Analysis — RetroLens{% endblock %}
+{% block content %}
+<div style="max-width: 700px;">
+    <h1 class="page-title" style="margin-bottom: 4px;">✨ New Retrospective Analysis</h1>
+    <p class="page-sub" style="margin-bottom: 24px;">Paste your sprint retro notes — AI will categorize themes, detect sentiment, and suggest action items.</p>
+    <form method="POST" class="card">
+        <div class="grid-2">
+            <div class="form-group">
+                <label class="form-label">Team</label>
+                <select name="team_id" class="form-select" required>
+                    {% for t in teams %}
+                    <option value="{{ t.id }}">{{ t.name }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div class="form-group">
+                <label class="form-label">Sprint Name</label>
+                <input type="text" name="sprint_name" class="form-input" required placeholder="e.g., Sprint 4 — Polish">
+            </div>
+        </div>
+        <div class="form-group">
+            <label class="form-label">Date</label>
+            <input type="date" name="date" class="form-input" value="{{ today }}">
+        </div>
+        <div class="form-group">
+            <label class="form-label">Retro Feedback</label>
+            <textarea name="raw_input" class="form-textarea" style="min-height: 240px; font-family: var(--mono); font-size: 13px;" required placeholder="Paste all your retro notes here. Examples:
+
+- Great team collaboration this sprint
+- Estimation was off on the API migration
+- Kudos to Alex for the hotfix
+- Standups are running too long
+- Deployment went smoothly thanks to the new runbook
+- Need better test coverage before QA
+- Scope creep on the search feature
+
+Supports any format: bullet points, numbered lists, paragraphs, categories (What went well / What to improve), etc. The AI will figure it out."></textarea>
+        </div>
+        <div style="display: flex; gap: 12px;">
+            <button type="submit" class="btn btn-primary">🔍 Analyze Feedback</button>
+            <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+        </div>
+        <p style="font-size: 11px; color: var(--muted); margin-top: 12px;">
+            {% if config.get('ANTHROPIC_API_KEY') %}
+                ✅ Claude API connected — full AI analysis available
+            {% else %}
+                ⚠️ No API key set — using rule-based fallback. Set <code>ANTHROPIC_API_KEY</code> env var for AI analysis.
+            {% endif %}
+        </p>
+    </form>
+</div>
+{% endblock %}
